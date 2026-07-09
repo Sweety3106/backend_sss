@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
+const { JWT_SECRET, JWT_EXPIRES_IN, JWT_REFRESH_SECRET, JWT_REFRESH_EXPIRES_IN } = require('../../config/env');
 
 const authModel = require('./auth.model');
 
@@ -10,11 +10,19 @@ const generateAuthResponse = (user) => {
         email: user.email,
         name: user.name
     };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const refreshToken = jwt.sign(
+        { userId: user.id },
+        JWT_REFRESH_SECRET || JWT_SECRET,
+        { expiresIn: JWT_REFRESH_EXPIRES_IN || '7d' }
+    );
 
     return {
-        token,
-        user: { userId: user.id,
+        token: accessToken,
+        accessToken,
+        refreshToken,
+        user: {
+            userId: user.id,
             name: user.name,
             email: user.email
         }
@@ -60,7 +68,34 @@ const login = async (email, password) => {
     return tokens;
 }
 
+
+const refreshAccessToken = async (refreshToken) => {
+    if (!refreshToken) {
+        throw { code: 'TOKEN_MISSING', message: 'Refresh token required', status: 401 };
+    }
+
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET || JWT_SECRET);
+
+    const user = await authModel.findUserById(decoded.userId);
+    if (!user) {
+        throw { code: 'USER_NOT_FOUND', message: 'User not found', status: 404 };
+    }
+
+    const accessToken = jwt.sign(
+        { userId: user.id, email: user.email, name: user.name },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    return {
+        token: accessToken,
+        accessToken,
+        user: { userId: user.id, name: user.name, email: user.email }
+    };
+};
+
 module.exports = {
     register,
-    login
+    login,
+    refreshAccessToken
 }
