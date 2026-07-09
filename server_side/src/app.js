@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+const cookieParser = require('cookie-parser')
 const {CLIENT_URL} = require('./config/env')
 const errorHandler = require('./middleware/errorHandler')
 
@@ -28,6 +29,7 @@ app.use(cors({
 }));
 
 app.use(express.json())
+app.use(cookieParser())
 
 // adding one health route for uptime bot
 app.get("/health", (req, res) => {
